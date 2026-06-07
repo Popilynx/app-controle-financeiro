@@ -178,9 +178,11 @@ class UpdateService {
                     const SizedBox(width: 12),
                     ElevatedButton(
                       onPressed: () async {
-                        final uri = Uri.parse(downloadUrl);
-                        if (await canLaunchUrl(uri)) {
+                        try {
+                          final uri = Uri.parse(downloadUrl);
                           await launchUrl(uri, mode: LaunchMode.externalApplication);
+                        } catch (e) {
+                          debugPrint('Erro ao abrir link de atualizacao: $e');
                         }
                         if (context.mounted) {
                           Navigator.of(context).pop();
