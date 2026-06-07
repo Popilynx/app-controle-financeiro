@@ -106,7 +106,7 @@ class GoogleDriveSyncService {
 
     // 3. Buscar a planilha no Drive
     final list = await driveApi.files.list(
-      q: "(name = 'Controle Financeiro Pessoal' or name = 'Controle_Financeiro_Pessoal' or name = 'controle_Financeiro_Pessoal' or name = 'controle_financeiro_pessoal') and mimeType = 'application/vnd.google-apps.spreadsheet' and trashed = false",
+      q: "name contains 'controle' and name contains 'pessoal' and mimeType = 'application/vnd.google-apps.spreadsheet' and trashed = false",
       spaces: 'drive',
       $fields: 'files(id, name)',
     );
@@ -227,7 +227,7 @@ class GoogleDriveSyncService {
   /// Busca uma planilha chamada 'Controle Financeiro Pessoal' ou cria uma nova.
   Future<String> _getOrCreateSpreadsheet(drive.DriveApi driveApi, sheets.SheetsApi sheetsApi) async {
     final list = await driveApi.files.list(
-      q: "(name = 'Controle Financeiro Pessoal' or name = 'Controle_Financeiro_Pessoal' or name = 'controle_Financeiro_Pessoal' or name = 'controle_financeiro_pessoal') and mimeType = 'application/vnd.google-apps.spreadsheet' and trashed = false",
+      q: "name contains 'controle' and name contains 'pessoal' and mimeType = 'application/vnd.google-apps.spreadsheet' and trashed = false",
       spaces: 'drive',
       $fields: 'files(id, name)',
     );
