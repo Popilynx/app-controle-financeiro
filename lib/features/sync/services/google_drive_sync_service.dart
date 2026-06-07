@@ -15,7 +15,7 @@ class GoogleDriveSyncService {
   final GoogleSignIn _googleSignIn = GoogleSignIn(
     serverClientId: '89878037656-n3r8p2ojgq4h5686muivurshcui77rv0.apps.googleusercontent.com',
     scopes: [
-      drive.DriveApi.driveFileScope,
+      drive.DriveApi.driveScope,
       sheets.SheetsApi.spreadsheetsScope,
     ],
   );
