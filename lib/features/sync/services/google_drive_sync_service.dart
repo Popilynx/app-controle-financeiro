@@ -104,19 +104,31 @@ class GoogleDriveSyncService {
     final driveApi = drive.DriveApi(client);
     final sheetsApi = sheets.SheetsApi(client);
 
-    // 3. Buscar a planilha no Drive
+    // 3. Buscar todos os arquivos no Drive que contêm 'controle' e 'pessoal' (sem filtro de mimeType rígido para diagnóstico)
     final list = await driveApi.files.list(
-      q: "name contains 'controle' and name contains 'pessoal' and mimeType = 'application/vnd.google-apps.spreadsheet' and trashed = false",
+      q: "name contains 'controle' and name contains 'pessoal' and trashed = false",
       spaces: 'drive',
-      $fields: 'files(id, name)',
+      $fields: 'files(id, name, mimeType)',
     );
 
     if (list.files == null || list.files!.isEmpty) {
-      // Planilha não encontrada no Drive, nada para importar
-      return 0;
+      throw Exception('Nenhuma planilha com as palavras "controle" e "pessoal" foi encontrada no seu Google Drive.');
     }
 
-    final spreadsheetId = list.files!.first.id!;
+    // Filtrar apenas planilhas nativas do Google Sheets
+    final sheetsFiles = list.files!.where((f) => f.mimeType == 'application/vnd.google-apps.spreadsheet').toList();
+
+    if (sheetsFiles.isEmpty) {
+      // Encontrou arquivos, mas são apenas do tipo Excel (.xlsx)
+      final excelNames = list.files!.map((f) => f.name).join(', ');
+      throw Exception(
+        'Planilha encontrada ($excelNames), mas está no formato Excel (.xlsx). '
+        'Abra o arquivo no site do Google Drive e clique em: '
+        'Arquivo > Salvar como Planilhas Google, depois tente novamente.'
+      );
+    }
+
+    final spreadsheetId = sheetsFiles.first.id!;
 
     // 4. Obter informações das abas (sheets)
     final ssInfo = await sheetsApi.spreadsheets.get(spreadsheetId);
