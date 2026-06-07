@@ -1,3 +1,4 @@
+import 'package:drift/drift.dart';
 import 'package:extension_google_sign_in_as_googleapis_auth/extension_google_sign_in_as_googleapis_auth.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -12,6 +13,7 @@ class GoogleDriveSyncService {
   final TransactionsRepository _repository;
   
   final GoogleSignIn _googleSignIn = GoogleSignIn(
+    serverClientId: '89878037656-n3r8p2ojgq4h5686muivurshcui77rv0.apps.googleusercontent.com',
     scopes: [
       drive.DriveApi.driveFileScope,
       sheets.SheetsApi.spreadsheetsScope,
@@ -75,13 +77,151 @@ class GoogleDriveSyncService {
 
     // Ordenar os meses cronologicamente para criar as abas ordenadas
     final sortedMonths = groupedTransactions.keys.toList();
-    // Ordenação simples (idealmente converteríamos para data para ordenar de fato, mas para simplificar mantemos a ordem de cadastro)
     
     // 6. Atualizar as abas da planilha
     for (var month in sortedMonths) {
       final txList = groupedTransactions[month]!;
       await _updateSheetForMonth(sheetsApi, spreadsheetId, month, txList);
     }
+  }
+
+  /// Busca a planilha no Google Drive e importa os dados para o banco local.
+  /// Retorna o número de transações importadas.
+  Future<int> syncDriveDataToLocal() async {
+    // 1. Garantir login
+    var account = _googleSignIn.currentUser;
+    account ??= await signIn();
+    if (account == null) {
+      throw Exception('Login do Google é necessário para importar.');
+    }
+
+    // 2. Obter cliente HTTP autenticado
+    final client = await _googleSignIn.authenticatedClient();
+    if (client == null) {
+      throw Exception('Falha ao autenticar cliente HTTP do Google.');
+    }
+
+    final driveApi = drive.DriveApi(client);
+    final sheetsApi = sheets.SheetsApi(client);
+
+    // 3. Buscar a planilha no Drive
+    final list = await driveApi.files.list(
+      q: "name = 'Controle Financeiro Pessoal' and mimeType = 'application/vnd.google-apps.spreadsheet' and trashed = false",
+      spaces: 'drive',
+      $fields: 'files(id, name)',
+    );
+
+    if (list.files == null || list.files!.isEmpty) {
+      // Planilha não encontrada no Drive, nada para importar
+      return 0;
+    }
+
+    final spreadsheetId = list.files!.first.id!;
+
+    // 4. Obter informações das abas (sheets)
+    final ssInfo = await sheetsApi.spreadsheets.get(spreadsheetId);
+    final sheetsList = ssInfo.sheets ?? [];
+
+    final List<TransactionsCompanion> transactionsToInsert = [];
+
+    // 5. Ler dados de cada aba mensal
+    for (var sheet in sheetsList) {
+      final monthYear = sheet.properties?.title;
+      if (monthYear == null) continue;
+
+      // Ler o intervalo das transações (Colunas A a E, a partir da linha 2)
+      final response = await sheetsApi.spreadsheets.values.get(
+        spreadsheetId,
+        "'$monthYear'!A2:E1000",
+      );
+
+      final rows = response.values;
+      if (rows == null || rows.isEmpty) continue;
+
+      for (var row in rows) {
+        // Ignorar linhas sem dados suficientes ou sem data
+        if (row.length < 5 || row[0] == null || row[0].toString().trim().isEmpty) {
+          continue;
+        }
+
+        try {
+          final rawDate = row[0];
+          final date = _parseDateString(rawDate.toString());
+          if (date == null) continue;
+
+          final descVal = row[1]?.toString() ?? 'Sem descrição';
+          final catVal = row[2]?.toString() ?? 'Geral';
+          final rawTipo = row[3]?.toString().trim() ?? 'Despesa';
+          final type = _parseType(rawTipo);
+          
+          final rawValor = row[4];
+          final amount = _parseAmount(rawValor);
+
+          transactionsToInsert.add(
+            TransactionsCompanion(
+              date: Value(date),
+              description: Value(descVal),
+              category: Value(catVal),
+              type: Value(type),
+              amount: Value(amount),
+              monthYear: Value(monthYear),
+            ),
+          );
+        } catch (e) {
+          debugPrint('Erro ao parsear linha da aba $monthYear: $e');
+        }
+      }
+    }
+
+    if (transactionsToInsert.isNotEmpty) {
+      await _repository.addTransactionsBatch(transactionsToInsert);
+    }
+
+    return transactionsToInsert.length;
+  }
+
+  /// Converte a string de data da planilha em DateTime
+  DateTime? _parseDateString(String str) {
+    final clean = str.trim();
+    if (clean.isEmpty) return null;
+    
+    final parts = clean.split('/');
+    if (parts.length == 3) {
+      final d = int.tryParse(parts[0]);
+      final m = int.tryParse(parts[1]);
+      final y = int.tryParse(parts[2]);
+      if (d != null && m != null && y != null) {
+        final fullYear = y < 100 ? 2000 + y : y;
+        return DateTime(fullYear, m, d);
+      }
+    }
+    return DateTime.tryParse(clean);
+  }
+
+  /// Padroniza o tipo da transação para 'Receita' ou 'Despesa'
+  String _parseType(String raw) {
+    final cleaned = raw.toLowerCase().trim();
+    if (cleaned.contains('receita') || cleaned == 'r' || cleaned == 'entrada') {
+      return 'Receita';
+    }
+    return 'Despesa';
+  }
+
+  /// Converte o valor bruto da planilha em double
+  double _parseAmount(dynamic raw) {
+    if (raw == null) return 0.0;
+    if (raw is num) return raw.toDouble();
+    
+    var str = raw.toString().trim();
+    if (str.isEmpty) return 0.0;
+
+    str = str.replaceAll('R\$', '').replaceAll(' ', '');
+    if (str.contains(',') && str.contains('.')) {
+      str = str.replaceAll('.', '').replaceAll(',', '.');
+    } else if (str.contains(',')) {
+      str = str.replaceAll(',', '.');
+    }
+    return double.tryParse(str) ?? 0.0;
   }
 
   /// Busca uma planilha chamada 'Controle Financeiro Pessoal' ou cria uma nova.

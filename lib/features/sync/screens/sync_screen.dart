@@ -23,6 +23,7 @@ class SyncScreen extends ConsumerStatefulWidget {
 
 class _SyncScreenState extends ConsumerState<SyncScreen> {
   bool _isSyncing = false;
+  bool _isDownloading = false;
   bool _isImporting = false;
 
   // Realiza a sincronização do banco local para o Drive
@@ -53,6 +54,41 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
       }
     } finally {
       if (mounted) setState(() => _isSyncing = false);
+    }
+  }
+
+  // Realiza a importação da planilha do Drive para o banco local
+  Future<void> _handleDownloadFromDrive() async {
+    setState(() => _isDownloading = true);
+    try {
+      final syncService = ref.read(googleDriveSyncServiceProvider);
+      final count = await syncService.syncDriveDataToLocal();
+      
+      // Invalidar dashboard e provedores de lista para forçar o recarregamento dos dados na tela
+      ref.invalidate(dashboardTransactionsProvider);
+      ref.invalidate(availableMonthsProvider);
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Importação concluída! $count transações importadas da nuvem com sucesso.'),
+            backgroundColor: AppColors.income,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Falha ao importar da nuvem: $e'),
+            backgroundColor: AppColors.expense,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isDownloading = false);
     }
   }
 
@@ -298,34 +334,62 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
           ),
           const SizedBox(height: 24),
           
-          if (_isSyncing)
-            const Column(
+          if (_isSyncing || _isDownloading)
+            Column(
               children: [
-                LinearProgressIndicator(color: AppColors.accent, backgroundColor: AppColors.surfaceElevated),
-                SizedBox(height: 12),
-                Text('Sincronizando transações locais com o Google Sheets...', style: TextStyle(color: AppColors.textSecondary, fontSize: 12)),
+                const LinearProgressIndicator(color: AppColors.accent, backgroundColor: AppColors.surfaceElevated),
+                const SizedBox(height: 12),
+                Text(
+                  _isSyncing 
+                      ? 'Enviando transações locais para o Google Sheets...'
+                      : 'Baixando transações da planilha do Google Sheets...',
+                  style: const TextStyle(color: AppColors.textSecondary, fontSize: 12),
+                ),
               ],
             )
           else
-            Row(
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Expanded(
-                  child: ElevatedButton.icon(
-                    onPressed: _handleSync,
-                    icon: const Icon(Icons.sync_rounded, size: 20),
-                    label: const Text('Sincronizar Agora'),
-                  ),
+                Row(
+                  children: [
+                    Expanded(
+                      child: ElevatedButton.icon(
+                        onPressed: _handleSync,
+                        icon: const Icon(Icons.cloud_upload_rounded, size: 20),
+                        label: const Text('Enviar p/ Nuvem'),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppColors.primary,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: ElevatedButton.icon(
+                        onPressed: _handleDownloadFromDrive,
+                        icon: const Icon(Icons.cloud_download_rounded, size: 20),
+                        label: const Text('Puxar da Nuvem'),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppColors.surfaceElevated,
+                          foregroundColor: AppColors.textPrimary,
+                          side: const BorderSide(color: AppColors.glassBorder, width: 0.5),
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
-                const SizedBox(width: 12),
-                OutlinedButton(
+                const SizedBox(height: 12),
+                ElevatedButton.icon(
                   onPressed: _handleSignOut,
-                  style: OutlinedButton.styleFrom(
+                  icon: const Icon(Icons.logout_rounded, size: 18),
+                  label: const Text('Desconectar Conta Google'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.transparent,
                     foregroundColor: AppColors.expense,
-                    side: const BorderSide(color: AppColors.expense, width: 1),
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                    elevation: 0,
+                    shadowColor: Colors.transparent,
+                    side: const BorderSide(color: AppColors.expense, width: 0.8),
                   ),
-                  child: const Icon(Icons.logout_rounded),
                 ),
               ],
             ),
