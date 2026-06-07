@@ -3,6 +3,7 @@ import '../../../core/theme/app_theme.dart';
 import 'dashboard_screen.dart';
 import '../../transactions/screens/transactions_screen.dart';
 import '../../sync/screens/sync_screen.dart';
+import '../../sync/services/update_service.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -13,6 +14,14 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   int _currentIndex = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      UpdateService.checkForUpdate(context);
+    });
+  }
 
   final List<Widget> _screens = [
     const DashboardScreen(),

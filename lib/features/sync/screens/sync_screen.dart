@@ -4,6 +4,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import '../../../core/theme/app_theme.dart';
 import '../services/google_drive_sync_service.dart';
+import '../services/update_service.dart';
 import '../../import/services/excel_parser_service.dart';
 import '../../dashboard/screens/dashboard_screen.dart';
 
@@ -185,7 +186,18 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
               _buildImportCard(),
               
               const SizedBox(height: 32),
-              
+
+              // Seção de Atualização
+              const Text(
+                'Atualizações do Sistema',
+                style: TextStyle(color: AppColors.textPrimary, fontSize: 18, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 12),
+
+              _buildUpdateCard(),
+
+              const SizedBox(height: 32),
+
               // Bloco Informativo de Automação Diária
               _buildInfoCard(),
             ],
@@ -397,6 +409,55 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
             child: Text(
               'A sincronização diária roda automaticamente em segundo plano, atualizando o arquivo no Google Drive uma vez por dia quando houver conexão Wi-Fi.',
               style: TextStyle(color: AppColors.textSecondary, fontSize: 12, height: 1.4),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildUpdateCard() {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: AppColors.glassBorder, width: 0.5),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          const Row(
+            children: [
+              Icon(Icons.system_update_rounded, color: AppColors.accent, size: 28),
+              SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Atualizações do App',
+                      style: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.bold, fontSize: 15),
+                    ),
+                    SizedBox(height: 4),
+                    Text(
+                      'Verifique se há novas versões do aplicativo de controle financeiro disponíveis no GitHub.',
+                      style: TextStyle(color: AppColors.textSecondary, fontSize: 12),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 20),
+          ElevatedButton.icon(
+            onPressed: () => UpdateService.checkForUpdate(context, showNoUpdateInfo: true),
+            icon: const Icon(Icons.refresh_rounded, size: 20),
+            label: const Text('Verificar Atualizações'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.surfaceElevated,
+              foregroundColor: AppColors.textPrimary,
+              side: const BorderSide(color: AppColors.glassBorder, width: 0.5),
             ),
           ),
         ],
