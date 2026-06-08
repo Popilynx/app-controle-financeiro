@@ -20,7 +20,13 @@ class GoogleDriveSyncService {
     ],
   );
 
-  GoogleDriveSyncService(this._repository);
+  GoogleDriveSyncService(this._repository) {
+    // Tenta restaurar a sessão de login anterior silenciosamente ao iniciar o app
+    _googleSignIn.signInSilently().catchError((e) {
+      debugPrint('Erro ao restaurar login silencioso do Google: $e');
+      return null;
+    });
+  }
 
   // Provedor para expor o estado do login
   GoogleSignInAccount? get currentUser => _googleSignIn.currentUser;
